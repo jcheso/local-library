@@ -208,33 +208,42 @@ exports.bookinstance_update_post = [
       imprint: req.body.imprint,
       status: req.body.status,
       due_back: req.body.due_back,
+      _id: req.params.id, //This is required, or a new ID will be assigned!
     });
 
     if (!errors.isEmpty()) {
       // There are errors. Render form again with sanitized values and error messages.
-      Book.find({}, "title").exec(function (err, books) {
-        if (err) {
-          return next(err);
-        }
-        // Successful, so render.
-        res.render("bookinstance_form", {
-          title: "Create BookInstance",
-          book_list: books,
-          selected_book: bookinstance.book._id,
-          errors: errors.array(),
-          bookinstance: bookinstance,
-        });
+      async.parallel({
+        bookinstance: function (callback) {
+          BookInstance.findById(req.params.id).populate("book").exec(callback);
+        },
+        books: function (callback) {
+          Book.find({}, "title").exec(callback);
+        },
+      });
+      // Successful, so render.
+      res.render("bookinstance_form", {
+        title: "Create BookInstance",
+        book_list: books,
+        selected_book: bookinstance.book._id,
+        errors: errors.array(),
+        bookinstance: bookinstance,
       });
       return;
     } else {
-      // Data from form is valid.
-      bookinstance.save(function (err) {
-        if (err) {
-          return next(err);
+      // Data from form is valid. Update the record.
+      BookInstance.findByIdAndUpdate(
+        req.params.id,
+        bookinstance,
+        {},
+        function (err, thebookinstance) {
+          if (err) {
+            return next(err);
+          }
+          // Successful - redirect to book detail page.
+          res.redirect(thebookinstance.url);
         }
-        // Successful - redirect to new record.
-        res.redirect(bookinstance.url);
-      });
+      );
     }
   },
 ];
